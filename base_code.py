@@ -1,4 +1,4 @@
-import numpy as np 
+import numpy as np
 import pandas as pd
 import tensorflow as tf
 #tf.compat.v1.disable_eager_execution()
@@ -19,7 +19,7 @@ class CategoricalEncoder():
             if not u in self._classes:
                 self._classes[u] = self.size
                 self.size += 1
-    
+
     def transform(self, X, unknown_category=True):
         result = np.full(X.shape, self.size, dtype=np.int32)
         for i in range(len(X)):
@@ -31,7 +31,7 @@ class CategoricalEncoder():
                 else:
                     raise KeyError
         return result
-    
+
     def fit_transform(self, X, unknown_category=True):
         self.fit(X)
         return self.transform(X, unknown_category=unknown_category)
@@ -42,8 +42,8 @@ class ReproductionErrorLayer(tf.keras.layers.Layer):
         self.loss = loss
         super(ReproductionErrorLayer, self).__init__(**kwargs)
 
-    def build(self, input_shape):       
-        
+    def build(self, input_shape):
+
         super(ReproductionErrorLayer, self).build(input_shape)  # Be sure to call this at the end
 
     def call(self, x):
@@ -51,14 +51,14 @@ class ReproductionErrorLayer(tf.keras.layers.Layer):
         assert isinstance(x, list)
 
         result = self.loss(x[0], x[1])
-        
+
         return tf.reshape(result, shape=[-1, 1])
 
     def compute_output_shape(self, input_shape):
         assert isinstance(input_shape, list)
 
         return (input_shape[0][0], self.output_dim)
-    
+
     def get_config(self):
         config = {
             'loss': self.loss
@@ -72,7 +72,7 @@ def label_to_int(label):
     return 1
 
 # This is the list of variables that will be used by the autoencoder
-cols = ["dur", "proto", "service", "state", "spkts", "dpkts", "sbytes", "dbytes", 
+cols = ["dur", "proto", "service", "state", "spkts", "dpkts", "sbytes", "dbytes",
 "rate", "sttl", "dttl", "sload", "dload", "sloss", "dloss", "sinpkt", "dinpkt",
 "synack", "ackdat", "smean", "dmean", "trans_depth", "response_body_len",
 "ct_srv_src", "ct_dst_ltm", "ct_src_dport_ltm", "ct_dst_sport_ltm",
@@ -87,13 +87,16 @@ def load_data(path, train=False):
     out = dict()
     labels = None
     for key in df.columns:
-        if key in ["TODO 1"]:
+        if key in ["dur", "spkts", "dpkts", "sbytes", "dbytes", "rate", "sttl", "dttl", "sload", "dload", "sloss", "dloss", "sinpkt", "dinpkt", "synack", "ackdat",
+        "smean", "dmean", "response_body_len", "ct_srv_src", "ct_dst_ltm", "ct_src_dport_ltm", "ct_dst_sport_ltm", "ct_dst_src_ltm", "ct_ftp_cmd", "ct_flw_http_mthd", "ct_src_ltm", "ct_srv_dst"]:
             inp[key] = df[key].values.astype(np.float32)
             # TODO 2: transform variables
         # Caegorical varaiables
-        elif key in ["TODO 1"]:
-            pass
-        
+        elif key in ["proto", "service", "state"]:
+            inter = CategoricalEncoder()
+            inp[key] = inter.fit_transform(df[key])
+            continue
+
         elif "attack_cat" in key:
             labels = df[key].map(label_to_int).values
             continue
@@ -104,7 +107,7 @@ def load_data(path, train=False):
             continue
 
         else:
-            pass
+            inp[key] = df[key].values.astype(bool)
 
         if train:
             out[key+'-output'] = inp[key]
@@ -113,7 +116,7 @@ def load_data(path, train=False):
     else:
         return inp, labels
 
-    
+
 
 def create_training_model(variables):
     inputs = []
@@ -125,10 +128,10 @@ def create_training_model(variables):
         x = None
 
         # Binary values
-        if key in ["TODO "]:
+        if key in ["TODO 1"]:
             inp = None
             x = None
-            
+
         # Categorical
         elif key in ["TODO 1"]:
             inp = None
@@ -138,13 +141,13 @@ def create_training_model(variables):
         else:
             inp = None
             x = None
-            
+
         inputs.append(inp)
         tensors.append(x)
 
     # Regroup all the inputs
     encoder = tf.keras.layers.Concatenate()(tensors)
-    
+
     # TODO 3.2: Define the central part of the autoecoder
     decoder = None
 
@@ -156,14 +159,14 @@ def create_training_model(variables):
         loss = None
         x = None
         # Binary values
-        if key in ["TODO 1"]:           
+        if key in ["TODO 1"]:
             loss = None
             x = None
-        
+
         # Categorical
-        elif key in ["TODO 1"]:            
+        elif key in ["TODO 1"]:
             loss = None
-            x = None 
+            x = None
 
         # Numeric
         else:
@@ -172,7 +175,7 @@ def create_training_model(variables):
 
         losses[key+"-output"].append(loss)
         outputs.append(x)
-    
+
     return tf.keras.Model(inputs, outputs), losses
 
 def create_inference_model(trained_model, losses, data):
@@ -182,8 +185,8 @@ def create_inference_model(trained_model, losses, data):
         in_name = key.replace("-output", "")
         layer = ReproductionErrorLayer(losses[key])([trained_model.get_layer(in_name).output, trained_model.get_layer(key).output])
         loss_outs.append(layer)
-    
-    # Build temporary model to calibrate each loss 
+
+    # Build temporary model to calibrate each loss
     tmp = tf.keras.Model(trained_model.inputs, loss_outs)
     error = tmp.predict(data, batch_size=1024)
     scalers = []
@@ -216,7 +219,7 @@ def train_model(model, losses, data):
 def find_threshold(normal_scores, anormal_scores):
     # TODO 5: Finding threshold
     return 0
-    
+
 
 train_data = load_data("train.csv", train=True)
 model, losses = create_training_model([k for k in train_data[0]])
