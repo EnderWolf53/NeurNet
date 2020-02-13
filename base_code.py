@@ -93,8 +93,16 @@ def load_data(path, train=False):
             # TODO 2: transform variables
         # Caegorical varaiables
         elif key in ["proto", "service", "state"]:
-            inter = CategoricalEncoder()
-            inp[key] = inter.fit_transform(df[key])
+            if train==True:
+                inter = CategoricalEncoder()
+                inp[key] = inter.fit_transform(df[key])
+                pickle.dump(inter, open(key,'wb'))
+            else:
+                inter = CategoricalEncoder()
+                pickle.load(open(key, 'rb'))
+                inp[key] = inter.fit_transform(df[key])
+
+            print(inp[key])
             continue
 
         elif "attack_cat" in key:
@@ -221,7 +229,7 @@ def find_threshold(normal_scores, anormal_scores):
     return 0
 
 
-train_data = load_data("train.csv", train=True)
+train_data = load_data("train.csv", train=False)
 model, losses = create_training_model([k for k in train_data[0]])
 model = train_model(model, losses, train_data)
 
