@@ -229,7 +229,7 @@ def find_threshold(normal_scores, anormal_scores):
     return 0
 
 
-train_data = load_data("train.csv", train=False)
+train_data = load_data("train.csv", train=True)
 model, losses = create_training_model([k for k in train_data[0]])
 model = train_model(model, losses, train_data)
 
