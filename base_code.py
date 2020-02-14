@@ -137,13 +137,13 @@ def create_training_model(variables):
 
         # Binary values
         if key in ["trans_depth", "is_ftp_login", "is_sm_ips_ports"]:
-            inp = tf.keras.Input(shape=(1,))
+            inp = tf.keras.Input(shape=(1,), name=key)
             x = tf.keras.layers.Dense(1, activation=tf.nn.sigmoid)(inp)
 
         # Categorical
         elif key in ["proto", "service", "state"]:
             inter = pickle.load(open(key, 'rb'))
-            inp = tf.keras.Input(shape=(1,))
+            inp = tf.keras.Input(shape=(1,), name=key)
             siz = inter.size + 1
             print(siz)
             emb = tf.keras.layers.Embedding(siz, 1, input_length=1)(inp)
@@ -152,7 +152,7 @@ def create_training_model(variables):
 
         # Numeric
         else:
-            inp = tf.keras.Input(shape=(1,), dtype='float32')
+            inp = tf.keras.Input(shape=(1,), dtype='float32', name=key)
             x = tf.keras.layers.Dense(1)(inp)
 
         inputs.append(inp)
@@ -168,6 +168,10 @@ def create_training_model(variables):
     decone = tf.keras.layers.Dense(24)(botnec)
     decoder = tf.keras.layers.Dense(34)(decone)
 
+    #tempmodel = tf.keras.Model(inputs=inputs, outputs=decoder)
+
+    #plot_model(tempmodel, 'neurnet.png', True, True, 'LR', False, 96)
+
     losses = {}
     outputs = []
 
@@ -177,22 +181,24 @@ def create_training_model(variables):
         x = None
         # Binary values
         if key in ["trans_depth", "is_ftp_login", "is_sm_ips_ports"]:
-            loss = None
-            x = None
+            loss = tf.keras.losses.binary_crossentropy
+            x = tf.keras.layers.Dense(1, activation=tf.nn.sigmoid, name=key+"-output")(decoder)
 
         # Categorical
         elif key in ["proto", "service", "state"]:
-            loss = None
-            x = None
+            loss = tf.keras.losses.categorical_crossentropy
+            x = tf.keras.layers.Dense(1, activation=tf.nn.softmax, name=key+"-output")(decoder)
 
         # Numeric
         else:
-            loss = None
-            x = None
+            loss = tf.keras.losses.mean_squared_error
+            x = tf.keras.layers.Dense(1, name=key+"-output")(decoder)
 
-        losses[key+"-output"].append(loss)
+        losses[key+"-output"] = loss
         outputs.append(x)
 
+
+    #plot_model(tf.keras.Model(inputs, outputs), 'neurnet.png', True, True, 'LR', False, 300)
     return tf.keras.Model(inputs, outputs), losses
 
 def create_inference_model(trained_model, losses, data):
