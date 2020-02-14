@@ -99,7 +99,7 @@ def load_data(path, train=False):
                 pickle.dump(inter, open(key,'wb'))
             else:
                 inter = CategoricalEncoder()
-                pickle.load(open(key, 'rb'))
+                inter = pickle.load(open(key, 'rb'))
                 inp[key] = inter.fit_transform(df[key])
 
             print(inp[key])
@@ -136,19 +136,24 @@ def create_training_model(variables):
         x = None
 
         # Binary values
-        if key in ["TODO 1"]:
-            inp = None
-            x = None
+        if key in ["trans_depth", "is_ftp_login", "is_sm_ips_ports"]:
+            inp = tf.keras.Input(shape=(1,))
+            x = tf.keras.layers.Dense(1, activation=tf.nn.sigmoid)(inp)
 
         # Categorical
-        elif key in ["TODO 1"]:
-            inp = None
-            x = None
+        elif key in ["proto", "service", "state"]:
+            inter = pickle.load(open(key, 'rb'))
+            inp = tf.keras.Input(shape=(1,))
+            siz = inter.size + 1
+            print(siz)
+            emb = tf.keras.layers.Embedding(siz, 1, input_length=1)(inp)
+            f = tf.keras.layers.Flatten()(emb)
+            x = tf.keras.layers.Dense(1, activation=tf.nn.softmax)(f)
 
         # Numeric
         else:
-            inp = None
-            x = None
+            inp = tf.keras.Input(shape=(1,), dtype='float32')
+            x = tf.keras.layers.Dense(1)(inp)
 
         inputs.append(inp)
         tensors.append(x)
@@ -157,7 +162,11 @@ def create_training_model(variables):
     encoder = tf.keras.layers.Concatenate()(tensors)
 
     # TODO 3.2: Define the central part of the autoecoder
-    decoder = None
+    encone = tf.keras.layers.Dense(34)(encoder)
+    enctwo = tf.keras.layers.Dense(24)(encone)
+    botnec = tf.keras.layers.Dense(12)(enctwo)
+    decone = tf.keras.layers.Dense(24)(botnec)
+    decoder = tf.keras.layers.Dense(34)(decone)
 
     losses = {}
     outputs = []
@@ -167,12 +176,12 @@ def create_training_model(variables):
         loss = None
         x = None
         # Binary values
-        if key in ["TODO 1"]:
+        if key in ["trans_depth", "is_ftp_login", "is_sm_ips_ports"]:
             loss = None
             x = None
 
         # Categorical
-        elif key in ["TODO 1"]:
+        elif key in ["proto", "service", "state"]:
             loss = None
             x = None
 
