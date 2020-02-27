@@ -269,7 +269,7 @@ print('anormal med')
 print(np.median(scores[anormal_ids]))
 print('anormal max')
 print(max(scores[anormal_ids]))
-plt.plot(scores[normal_ids], 'bs')
+plt.plot(scores[anormal_ids], 'rs' scores[normal_ids], 'bs')
 plt.show()
 threshold = find_threshold(scores[normal_ids], scores[anormal_ids])
 
