@@ -4,9 +4,10 @@ import tensorflow as tf
 #tf.compat.v1.disable_eager_execution()
 from scipy import stats
 from tensorflow.keras.utils import plot_model
-import sklearn.preprocessing
+import sklearn
+from sklearn import preprocessing
 import pickle
-
+import matplotlib.pyplot as plt
 
 class CategoricalEncoder():
     def __init__(self):
@@ -89,7 +90,7 @@ def load_data(path, train=False):
     for key in df.columns:
         if key in ["dur", "spkts", "dpkts", "sbytes", "dbytes", "rate", "sttl", "dttl", "sload", "dload", "sloss", "dloss", "sinpkt", "dinpkt", "synack", "ackdat",
         "smean", "dmean", "response_body_len", "ct_srv_src", "ct_dst_ltm", "ct_src_dport_ltm", "ct_dst_sport_ltm", "ct_dst_src_ltm", "ct_ftp_cmd", "ct_flw_http_mthd", "ct_src_ltm", "ct_srv_dst"]:
-            inp[key] = df[key].values.astype(np.float32)
+            inp[key] = preprocessing.scale(df[key].values.astype(np.float32))
             # TODO 2: transform variables
         # Caegorical varaiables
         elif key in ["proto", "service", "state"]:
@@ -98,12 +99,10 @@ def load_data(path, train=False):
                 inp[key] = inter.fit_transform(df[key])
                 pickle.dump(inter, open(key,'wb'))
             else:
-                inter = CategoricalEncoder()
                 inter = pickle.load(open(key, 'rb'))
-                inp[key] = inter.fit_transform(df[key])
+                inp[key] = inter.transform(df[key])
 
             print(inp[key])
-            continue
 
         elif "attack_cat" in key:
             labels = df[key].map(label_to_int).values
@@ -130,7 +129,7 @@ def create_training_model(variables):
     inputs = []
     tensors = []
 
-    # TODO 3.1: Define the encoding part specific to each input type
+    # DONE 3.1: Define the encoding part specific to each input type
     for key in variables:
         inp = None
         x = None
@@ -144,8 +143,7 @@ def create_training_model(variables):
         elif key in ["proto", "service", "state"]:
             inter = pickle.load(open(key, 'rb'))
             inp = tf.keras.Input(shape=(1,), name=key)
-            siz = inter.size + 1
-            print(siz)
+            siz = inter.size + 2
             emb = tf.keras.layers.Embedding(siz, 1, input_length=1)(inp)
             f = tf.keras.layers.Flatten()(emb)
             x = tf.keras.layers.Dense(1, activation=tf.nn.softmax)(f)
@@ -161,7 +159,7 @@ def create_training_model(variables):
     # Regroup all the inputs
     encoder = tf.keras.layers.Concatenate()(tensors)
 
-    # TODO 3.2: Define the central part of the autoecoder
+    # DONE 3.2: Define the central part of the autoecoder
     encone = tf.keras.layers.Dense(34)(encoder)
     enctwo = tf.keras.layers.Dense(24)(encone)
     botnec = tf.keras.layers.Dense(12)(enctwo)
@@ -175,7 +173,7 @@ def create_training_model(variables):
     losses = {}
     outputs = []
 
-    # TODO 3.3: Define the decoding part and loss specific to each input type
+    # DONE 3.3: Define the decoding part and loss specific to each input type
     for key in variables:
         loss = None
         x = None
@@ -186,8 +184,10 @@ def create_training_model(variables):
 
         # Categorical
         elif key in ["proto", "service", "state"]:
-            loss = tf.keras.losses.categorical_crossentropy
-            x = tf.keras.layers.Dense(1, activation=tf.nn.softmax, name=key+"-output")(decoder)
+            loss = tf.keras.losses.sparse_categorical_crossentropy
+            intero = pickle.load(open(key, 'rb'))
+            sizo = inter.size + 1
+            x = tf.keras.layers.Dense(sizo, activation=tf.nn.softmax, name=key+"-output")(decoder)
 
         # Numeric
         else:
@@ -233,7 +233,8 @@ def train_model(model, losses, data):
     model.compile(loss=losses, optimizer='adam')
     plot_model(model, to_file='autoencoder.png', show_shapes=True)
     x, y, _ = data
-    model.fit(x, y, verbose=2, batch_size=1024, epochs=1000, validation_split=0.2, callbacks=[tf.keras.callbacks.EarlyStopping(patience=15, min_delta=0.0001, restore_best_weights=True)])
+    #print(y)
+    model.fit(x, y, verbose=0, batch_size=1024, epochs=1000, validation_split=0.2, callbacks=[tf.keras.callbacks.EarlyStopping(patience=15, min_delta=0.0001, restore_best_weights=True)])
 
     inf_model = create_inference_model(model, losses, x)
 
@@ -248,12 +249,28 @@ train_data = load_data("train.csv", train=True)
 model, losses = create_training_model([k for k in train_data[0]])
 model = train_model(model, losses, train_data)
 
-test_data, y, labels = load_data("evaluate.csv")
+test_data, labels = load_data("evaluate.csv")
 scores = model.predict(test_data, batch_size=4096)
-
 normal_ids = np.where(labels == 0)
 anormal_ids = np.where(labels == 1)
-
+print('normal min')
+print(min(scores[normal_ids]))
+print('normal avg')
+print(np.mean(scores[normal_ids]))
+print('normal med')
+print(np.median(scores[normal_ids]))
+print('normal max')
+print(max(scores[normal_ids]))
+print('anormal min')
+print(min(scores[anormal_ids]))
+print('anormal avg')
+print(np.mean(scores[anormal_ids]))
+print('anormal med')
+print(np.median(scores[anormal_ids]))
+print('anormal max')
+print(max(scores[anormal_ids]))
+plt.plot(scores[normal_ids], 'bs')
+plt.show()
 threshold = find_threshold(scores[normal_ids], scores[anormal_ids])
 
 # TODO 6: analyze "unknown.csv"
