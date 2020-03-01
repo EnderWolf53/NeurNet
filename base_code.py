@@ -160,11 +160,13 @@ def create_training_model(variables):
     encoder = tf.keras.layers.Concatenate()(tensors)
 
     # DONE 3.2: Define the central part of the autoecoder
-    encone = tf.keras.layers.Dense(34)(encoder)
-    enctwo = tf.keras.layers.Dense(24)(encone)
-    botnec = tf.keras.layers.Dense(12)(enctwo)
-    decone = tf.keras.layers.Dense(24)(botnec)
-    decoder = tf.keras.layers.Dense(34)(decone)
+    encone = tf.keras.layers.Dense(34, kernel_regularizer=tf.keras.regularizers.l2())(encoder)
+    enctwo = tf.keras.layers.Dense(24, kernel_regularizer=tf.keras.regularizers.l1())(encone)
+    encthree = tf.keras.layers.Dense(12)(enctwo)
+    botnec = tf.keras.layers.Dense(4, activation=tf.nn.sigmoid)(encthree)
+    dectwo = tf.keras.layers.Dense(12)(botnec)
+    decone = tf.keras.layers.Dense(24, kernel_regularizer=tf.keras.regularizers.l1())(dectwo)
+    decoder = tf.keras.layers.Dense(34, kernel_regularizer=tf.keras.regularizers.l2())(decone)
 
     #tempmodel = tf.keras.Model(inputs=inputs, outputs=decoder)
 
@@ -214,18 +216,18 @@ def create_inference_model(trained_model, losses, data):
     error = tmp.predict(data, batch_size=1024)
     scalers = []
     for i in range(len(error)):
-        # TODO 4: Compute parameters useful for calibration
-        params = None
+        # DONE 4: Compute parameters useful for calibration (standard deviation + mean)
+        params = np.mean(error[i]), np.std(error[i])
         scalers.append(tf.keras.layers.Lambda(loss_scaler(params))(tmp.outputs[i]))
 
 
     return tf.keras.Model(tmp.inputs, tf.keras.layers.Add()(scalers))
 
 def loss_scaler(params):
+    mean, std = params
     def fn(x):
-        # TODO 4: scaling function
-        # Use tensorflow supported functions and operators only
-        return x
+        # DONE 4: scaling function
+        fn = (x - mean)/std
     return fn
 
 
@@ -234,15 +236,15 @@ def train_model(model, losses, data):
     plot_model(model, to_file='autoencoder.png', show_shapes=True)
     x, y, _ = data
     #print(y)
-    model.fit(x, y, verbose=0, batch_size=1024, epochs=1000, validation_split=0.2, callbacks=[tf.keras.callbacks.EarlyStopping(patience=15, min_delta=0.0001, restore_best_weights=True)])
+    model.fit(x, y, verbose=2, batch_size=1024, epochs=1000, validation_split=0.2, callbacks=[tf.keras.callbacks.EarlyStopping(patience=15, min_delta=0.00001, restore_best_weights=True)])
 
     inf_model = create_inference_model(model, losses, x)
 
     return inf_model
 
 def find_threshold(normal_scores, anormal_scores):
-    # TODO 5: Finding threshold
-    return 0
+    # DONE 5: Finding threshold
+    return 50
 
 
 train_data = load_data("train.csv", train=True)
@@ -253,24 +255,27 @@ test_data, labels = load_data("evaluate.csv")
 scores = model.predict(test_data, batch_size=4096)
 normal_ids = np.where(labels == 0)
 anormal_ids = np.where(labels == 1)
-print('normal min')
-print(min(scores[normal_ids]))
-print('normal avg')
-print(np.mean(scores[normal_ids]))
-print('normal med')
-print(np.median(scores[normal_ids]))
-print('normal max')
-print(max(scores[normal_ids]))
-print('anormal min')
-print(min(scores[anormal_ids]))
-print('anormal avg')
-print(np.mean(scores[anormal_ids]))
-print('anormal med')
-print(np.median(scores[anormal_ids]))
-print('anormal max')
-print(max(scores[anormal_ids]))
-plt.plot(scores[anormal_ids], 'rs' scores[normal_ids], 'bs')
+#print('normal min')
+#print(min(scores[normal_ids]))
+#print('normal avg')
+#print(np.mean(scores[normal_ids]))
+#print('normal med')
+#print(np.median(scores[normal_ids]))
+#print('normal max')
+#print(max(scores[normal_ids]))
+#print('anormal min')
+#print(min(scores[anormal_ids]))
+#print('anormal avg')
+#print(np.mean(scores[anormal_ids]))
+#print('anormal med')
+#print(np.median(scores[anormal_ids]))
+#print('anormal max')
+#print(max(scores[anormal_ids]))
+print('normal 90p')
+print(np.percentile(scores[normal_ids], 90, interpolation='midpoint'))
+print('anormal 85p')
+print(np.percentile(scores[anormal_ids], 15, interpolation='midpoint'))
+plt.plot(scores[normal_ids], 'bs', scores[anormal_ids], 'rs')
 plt.show()
 threshold = find_threshold(scores[normal_ids], scores[anormal_ids])
-
 # TODO 6: analyze "unknown.csv"
